@@ -1,10 +1,6 @@
 use nih_plug::prelude::*;
 use std::sync::Arc;
 
-// This is a shortened version of the gain example with most comments removed, check out
-// https://github.com/robbert-vdh/nih-plug/blob/master/plugins/examples/gain/src/lib.rs to get
-// started
-
 struct Saturator {
     params: Arc<SaturatorParams>,
 }
@@ -30,9 +26,6 @@ impl Default for Saturator {
 impl Default for SaturatorParams {
     fn default() -> Self {
         Self {
-            // This gain is stored as linear gain. NIH-plug comes with useful conversion functions
-            // to treat these kinds of parameters as if we were dealing with decibels. Storing this
-            // as decibels is easier to work with, but requires a conversion for every sample.
             gain: FloatParam::new(
                 "Gain",
                 util::db_to_gain(0.0),
@@ -44,13 +37,8 @@ impl Default for SaturatorParams {
                     factor: FloatRange::gain_skew_factor(-30.0, 30.0),
                 },
             )
-            // Because the gain parameter is stored as linear gain instead of storing the value as
-            // decibels, we need logarithmic smoothing
             .with_smoother(SmoothingStyle::Logarithmic(50.0))
             .with_unit(" dB")
-            // There are many predefined formatters we can use here. If the gain was stored as
-            // decibels instead of as a linear gain value, we could have also used the
-            // `.with_step_size(0.1)` function to get internal rounding.
             .with_value_to_string(formatters::v2s_f32_gain_to_db(2))
             .with_string_to_value(formatters::s2v_f32_gain_to_db()),
         }
@@ -79,7 +67,6 @@ impl Plugin for Saturator {
         // only one input and output channel would be called 'Mono'.
         names: PortNames::const_default(),
     }];
-
 
     const MIDI_INPUT: MidiConfig = MidiConfig::None;
     const MIDI_OUTPUT: MidiConfig = MidiConfig::None;
@@ -127,6 +114,11 @@ impl Plugin for Saturator {
             let gain = self.params.gain.smoothed.next();
 
             for sample in channel_samples {
+                if sample.is_sign_positive() {
+                    *sample = (f32::ln(*sample + 1.0)) / f32::ln(2.);
+                } else {
+                    *sample = -((f32::ln(-*sample + 1.0)) / f32::ln(2.));
+                }
                 *sample *= gain;
             }
         }
@@ -141,16 +133,22 @@ impl ClapPlugin for Saturator {
     const CLAP_MANUAL_URL: Option<&'static str> = Some(Self::URL);
     const CLAP_SUPPORT_URL: Option<&'static str> = None;
 
-    // Don't forget to change these features
-    const CLAP_FEATURES: &'static [ClapFeature] = &[ClapFeature::AudioEffect, ClapFeature::Stereo];
+    const CLAP_FEATURES: &'static [ClapFeature] = &[
+        ClapFeature::AudioEffect,
+        ClapFeature::Stereo,
+        ClapFeature::Distortion,
+        ClapFeature::Mixing,
+    ];
 }
 
 impl Vst3Plugin for Saturator {
     const VST3_CLASS_ID: [u8; 16] = *b"N6KtgTL2ZknCEU4y";
 
-    // And also don't forget to change these categories
-    const VST3_SUBCATEGORIES: &'static [Vst3SubCategory] =
-        &[Vst3SubCategory::Fx, Vst3SubCategory::Dynamics];
+    const VST3_SUBCATEGORIES: &'static [Vst3SubCategory] = &[
+        Vst3SubCategory::Fx,
+        Vst3SubCategory::Distortion,
+        Vst3SubCategory::Stereo,
+    ];
 }
 
 nih_export_clap!(Saturator);
