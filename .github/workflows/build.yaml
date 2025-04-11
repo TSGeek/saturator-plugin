@@ -19,7 +19,7 @@ jobs:
           fetch-tags: 'true'
       - name: Create release
         run: |
-          gh release create build-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }} -t build-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }} -F .github/workflows/release-text.md
+          gh release create build-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }} -F .github/workflows/release-text.md
   build-linux:
     runs-on: ubuntu-latest
     needs: create-release
