@@ -5,14 +5,19 @@ struct Saturator {
     params: Arc<SaturatorParams>,
 }
 
+#[derive(Enum, Debug, PartialEq)]
+enum Function {
+    NaturalLog,
+    Sigmoid,
+}
+
 #[derive(Params)]
 struct SaturatorParams {
-    /// The parameter's ID is used to identify the parameter in the wrappred plugin API. As long as
-    /// these IDs remain constant, you can rename and reorder these fields as you wish. The
-    /// parameters are exposed to the host in the same order they were defined. In this case, this
-    /// gain parameter is stored as linear gain while the values are displayed in decibels.
     #[id = "gain"]
     pub gain: FloatParam,
+
+    #[id = "function"]
+    pub function: EnumParam<Function>,
 }
 
 impl Default for Saturator {
@@ -39,6 +44,7 @@ impl Default for SaturatorParams {
             .with_unit(" dB")
             .with_value_to_string(formatters::v2s_f32_gain_to_db(2))
             .with_string_to_value(formatters::s2v_f32_gain_to_db()),
+            function: EnumParam::new("Function", Function::NaturalLog),
         }
     }
 }
@@ -95,11 +101,19 @@ impl Plugin for Saturator {
             let gain = self.params.gain.smoothed.next();
 
             for sample in channel_samples {
-                if sample.is_sign_positive() {
-                    *sample = (f32::ln(*sample + 1.0)) / f32::ln(2.);
-                } else {
-                    *sample = -((f32::ln(-*sample + 1.0)) / f32::ln(2.));
+                match self.params.function.value() {
+                    Function::NaturalLog => {
+                        if sample.is_sign_positive() {
+                            *sample = (f32::ln(*sample + 1.0)) / f32::ln(2.);
+                        } else {
+                            *sample = -((f32::ln(-*sample + 1.0)) / f32::ln(2.));
+                        }
+                    }
+                    Function::Sigmoid => {
+                        *sample = 2.0 * (1.0 / (1.0 + f32::exp(-5.0 * (*sample))) - 0.5);
+                    }
                 }
+
                 *sample *= gain;
             }
         }
